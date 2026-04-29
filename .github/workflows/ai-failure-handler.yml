@@ -1,0 +1,206 @@
+# platform-ai-workflows/.github/workflows/ai-failure-handler.yml
+#
+# Workflow CENTRALIZZATO: scansiona tutti i run falliti dell'org nelle ultime 2 ore.
+# Non richiede NESSUN file nelle repo applicative.
+# Crea issue + assign @copilot nei repo dove il workflow è fallito.
+#
+# Funzionamento:
+#   1. Schedulato ogni 2 ore (o manuale)
+#   2. Interroga l'API org per workflow_runs con conclusion=failure
+#   3. Filtra solo i run falliti nelle ultime 2 ore non già gestiti (no label copilot-auto)
+#   4. Per ogni failure: scarica log, crea issue nel repo di origine, assign @copilot
+
+name: Org-wide Failure Handler
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'    # Ogni 2 ore
+  workflow_dispatch:
+    inputs:
+      lookback-minutes:
+        description: 'Minuti indietro da controllare (default: 120)'
+        required: false
+        type: number
+        default: 120
+      dry-run:
+        description: 'Solo report, senza creare issue'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  scan-org-failures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan failed runs across org
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_PAT }}
+        run: |
+          ORG="${{ github.repository_owner }}"
+          LOOKBACK="${{ inputs.lookback-minutes || 120 }}"
+          SINCE=$(date -u -d "${LOOKBACK} minutes ago" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || \
+                  date -u -v-${LOOKBACK}M '+%Y-%m-%dT%H:%M:%SZ')
+
+          echo "🔍 Scansione org: ${ORG}"
+          echo "📅 Run falliti dal: ${SINCE}"
+          echo ""
+
+          # Recupera tutti i repo dell'org (con workflow abilitati)
+          REPOS=$(gh repo list "$ORG" --limit 200 --json name --jq '.[].name')
+
+          echo '[]' > all-failures.json
+
+          for REPO in $REPOS; do
+            FULL_REPO="${ORG}/${REPO}"
+
+            # Recupera i run falliti dopo $SINCE
+            FAILED_RUNS=$(gh api "/repos/${FULL_REPO}/actions/runs?status=failure&created=>=${SINCE}&per_page=10" \
+              --jq '.workflow_runs[] | {id: .id, name: .name, branch: .head_branch, sha: .head_sha, url: .html_url, created: .created_at, repo: "'"${FULL_REPO}"'"}' \
+              2>/dev/null) || continue
+
+            if [ -z "$FAILED_RUNS" ]; then
+              continue
+            fi
+
+            echo "$FAILED_RUNS" | jq -s '.' >> failures-batch.json
+
+            # Controlla se esiste già un'issue copilot-auto per questo run
+            echo "$FAILED_RUNS" | while IFS= read -r run_json; do
+              RUN_ID=$(echo "$run_json" | jq -r '.id')
+
+              # Cerca issue esistenti con label copilot-auto che menzionano questo run ID
+              EXISTING=$(gh issue list --repo "$FULL_REPO" --label "copilot-auto" \
+                --search "run #${RUN_ID}" --json number --jq 'length' 2>/dev/null || echo "0")
+
+              if [ "$EXISTING" = "0" ]; then
+                # Aggiungi ai failure da processare
+                echo "$run_json" | jq -c '.' >> new-failures.jsonl
+              else
+                echo "  ⏭️  Skip ${FULL_REPO} run #${RUN_ID} — issue già esistente"
+              fi
+            done
+          done
+
+          # Conta i failure da processare
+          if [ -f "new-failures.jsonl" ]; then
+            TOTAL=$(wc -l < new-failures.jsonl)
+            echo ""
+            echo "📊 Run falliti da processare: ${TOTAL}"
+          else
+            echo ""
+            echo "✅ Nessun run fallito non gestito trovato"
+            echo "no_failures=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Create issues for each failure
+        if: env.no_failures != 'true' && inputs.dry-run != true
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_PAT }}
+        run: |
+          if [ ! -f "new-failures.jsonl" ]; then
+            echo "Nessun failure da processare"
+            exit 0
+          fi
+
+          CREATED=0
+          ERRORS=0
+
+          while IFS= read -r failure; do
+            RUN_ID=$(echo "$failure" | jq -r '.id')
+            RUN_NAME=$(echo "$failure" | jq -r '.name')
+            RUN_URL=$(echo "$failure" | jq -r '.url')
+            RUN_BRANCH=$(echo "$failure" | jq -r '.branch')
+            RUN_SHA=$(echo "$failure" | jq -r '.sha')
+            RUN_REPO=$(echo "$failure" | jq -r '.repo')
+
+            echo "📝 Creazione issue per ${RUN_REPO} — ${RUN_NAME} (run #${RUN_ID})"
+
+            # Scarica i log falliti
+            LOG_EXCERPT=$(gh run view "$RUN_ID" --repo "$RUN_REPO" --log-failed 2>/dev/null | tail -80 || echo "Log non disponibili")
+
+            # Recupera info job falliti
+            FAILED_JOBS=$(gh run view "$RUN_ID" --repo "$RUN_REPO" --json jobs \
+              --jq '.jobs[] | select(.conclusion == "failure") | "- **\(.name)**: \(.steps[] | select(.conclusion == "failure") | .name)"' \
+              2>/dev/null || echo "Info job non disponibili")
+
+            ISSUE_BODY="## Workflow fallito — rilevato automaticamente
+
+**Workflow**: ${RUN_NAME}
+**Run**: [#${RUN_ID}](${RUN_URL})
+**Repository**: \`${RUN_REPO}\`
+**Branch**: \`${RUN_BRANCH}\`
+**Commit**: \`${RUN_SHA}\`
+**Data rilevamento**: $(date -u '+%Y-%m-%d %H:%M UTC')
+
+### Job e step falliti
+${FAILED_JOBS}
+
+### Log di errore (ultimi 80 righe)
+\`\`\`
+${LOG_EXCERPT}
+\`\`\`
+
+### Istruzioni
+Analizza il log di errore, identifica la causa root e proponi un fix.
+- Se è un errore di build (Maven, npm), controlla dipendenze e configurazione
+- Se è un errore di test, verifica il test e il codice sotto test
+- Se è un errore di deploy, verifica configurazione k8s e secrets
+- Se il problema è nel template centralizzato (platform-workflows), segnalalo senza modificare il template
+- Rispetta le convenzioni in \`.github/copilot-instructions.md\`"
+
+            # Crea issue nel repo di origine del failure
+            gh issue create \
+              --repo "$RUN_REPO" \
+              --title "Auto-fix: ${RUN_NAME} fallito (run #${RUN_ID})" \
+              --body "$ISSUE_BODY" \
+              --label "copilot-auto,bug" \
+              --assignee "copilot" 2>/dev/null && {
+                CREATED=$((CREATED + 1))
+                echo "  ✅ Issue creata"
+              } || {
+                ERRORS=$((ERRORS + 1))
+                echo "  ⚠️ Errore creazione issue"
+              }
+
+          done < new-failures.jsonl
+
+          echo ""
+          echo "📊 Riepilogo: ${CREATED} issue create, ${ERRORS} errori"
+          echo "created=${CREATED}" >> "$GITHUB_ENV"
+          echo "errors=${ERRORS}" >> "$GITHUB_ENV"
+
+      - name: Summary
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_PAT }}
+        run: |
+          echo "## Org-wide Failure Handler" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${{ env.no_failures }}" = "true" ]; then
+            echo "✅ Nessun run fallito non gestito trovato." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${{ inputs.dry-run }}" = "true" ]; then
+            echo "🔍 **Dry run** — nessuna issue creata." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            if [ -f "new-failures.jsonl" ]; then
+              echo "### Run falliti rilevati" >> "$GITHUB_STEP_SUMMARY"
+              while IFS= read -r f; do
+                echo "- **$(echo "$f" | jq -r '.repo')**: $(echo "$f" | jq -r '.name') — [run #$(echo "$f" | jq -r '.id')]($(echo "$f" | jq -r '.url'))" >> "$GITHUB_STEP_SUMMARY"
+              done < new-failures.jsonl
+            fi
+          else
+            echo "Issue create: **${created:-0}** | Errori: **${errors:-0}**" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            if [ -f "new-failures.jsonl" ]; then
+              echo "### Run processati" >> "$GITHUB_STEP_SUMMARY"
+              while IFS= read -r f; do
+                echo "- **$(echo "$f" | jq -r '.repo')**: $(echo "$f" | jq -r '.name') — [run #$(echo "$f" | jq -r '.id')]($(echo "$f" | jq -r '.url'))" >> "$GITHUB_STEP_SUMMARY"
+              done < new-failures.jsonl
+            fi
+          fi
