@@ -129,35 +129,33 @@ jobs:
               --jq '.jobs[] | select(.conclusion == "failure") | "- **\(.name)**: \(.steps[] | select(.conclusion == "failure") | .name)"' \
               2>/dev/null || echo "Info job non disponibili")
 
-            ISSUE_BODY="## Workflow fallito — rilevato automaticamente
-
-ISSUE_BODY="$(cat <<EOF
-## Workflow fallito — rilevato automaticamente
-
-**Workflow**: ${RUN_NAME}
-**Run**: [#${RUN_ID}](${RUN_URL})
-**Repository**: \`${RUN_REPO}\`
-**Branch**: \`${RUN_BRANCH}\`
-**Commit**: \`${RUN_SHA}\`
-**Data rilevamento**: $(date -u '+%Y-%m-%d %H:%M UTC')
-
-### Job e step falliti
-${FAILED_JOBS}
-
-### Log di errore (ultimi 80 righe)
-\`\`\`
-${LOG_EXCERPT}
-\`\`\`
-
-### Istruzioni
-Analizza il log di errore, identifica la causa root e proponi un fix.
-- Se è un errore di build (Maven, npm), controlla dipendenze e configurazione
-- Se è un errore di test, verifica il test e il codice sotto test
-- Se è un errore di deploy, verifica configurazione k8s e secrets
-- Se il problema è nel template centralizzato (platform-workflows), segnalalo senza modificare il template
-- Rispetta le convenzioni in \`.github/copilot-instructions.md\`
-EOF
-)"
+            ISSUE_BODY="$(cat <<EOF
+            ## Workflow fallito — rilevato automaticamente
+            
+            **Workflow**: ${RUN_NAME}
+            **Run**: [#${RUN_ID}](${RUN_URL})
+            **Repository**: \`${RUN_REPO}\`
+            **Branch**: \`${RUN_BRANCH}\`
+            **Commit**: \`${RUN_SHA}\`
+            **Data rilevamento**: $(date -u '+%Y-%m-%d %H:%M UTC')
+            
+            ### Job e step falliti
+            ${FAILED_JOBS}
+            
+            ### Log di errore (ultimi 80 righe)
+            \`\`\`
+            ${LOG_EXCERPT}
+            \`\`\`
+            
+            ### Istruzioni
+            Analizza il log di errore, identifica la causa root e proponi un fix.
+            - Se è un errore di build (Maven, npm), controlla dipendenze e configurazione
+            - Se è un errore di test, verifica il test e il codice sotto test
+            - Se è un errore di deploy, verifica configurazione k8s e secrets
+            - Se il problema è nel template centralizzato (platform-workflows), segnalalo senza modificare il template
+            - Rispetta le convenzioni in \`.github/copilot-instructions.md\`
+            EOF
+            )"
 
             # Crea issue nel repo di origine del failure
             gh issue create \
