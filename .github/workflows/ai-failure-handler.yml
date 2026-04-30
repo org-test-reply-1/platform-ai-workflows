@@ -40,7 +40,7 @@ jobs:
 
       - name: Scan failed runs across org
         env:
-          GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_PAT }}
+          GH_TOKEN: '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'
         run: |
           ORG="${{ github.repository_owner }}"
           LOOKBACK="${{ inputs.lookback-minutes || 120 }}"
