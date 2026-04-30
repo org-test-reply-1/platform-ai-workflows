@@ -131,6 +131,9 @@ jobs:
 
             ISSUE_BODY="## Workflow fallito — rilevato automaticamente
 
+ISSUE_BODY="$(cat <<EOF
+## Workflow fallito — rilevato automaticamente
+
 **Workflow**: ${RUN_NAME}
 **Run**: [#${RUN_ID}](${RUN_URL})
 **Repository**: \`${RUN_REPO}\`
@@ -152,7 +155,9 @@ Analizza il log di errore, identifica la causa root e proponi un fix.
 - Se è un errore di test, verifica il test e il codice sotto test
 - Se è un errore di deploy, verifica configurazione k8s e secrets
 - Se il problema è nel template centralizzato (platform-workflows), segnalalo senza modificare il template
-- Rispetta le convenzioni in \`.github/copilot-instructions.md\`"
+- Rispetta le convenzioni in \`.github/copilot-instructions.md\`
+EOF
+)"
 
             # Crea issue nel repo di origine del failure
             gh issue create \
