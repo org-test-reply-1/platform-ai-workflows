@@ -159,7 +159,8 @@ Analizza il log di errore, identifica la causa root e proponi un fix.
               --repo "$RUN_REPO" \
               --title "Auto-fix: ${RUN_NAME} fallito (run #${RUN_ID})" \
               --body "$ISSUE_BODY" \
-              --label "copilot-auto,bug" \
+              --label "copilot-auto" \
+              --label "bug" \
               --assignee "copilot" 2>/dev/null && {
                 CREATED=$((CREATED + 1))
                 echo "  ✅ Issue creata"
