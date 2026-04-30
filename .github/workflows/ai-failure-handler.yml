@@ -12,9 +12,7 @@
 
 name: Org-wide Failure Handler
 
-on:
-  schedule:
-    - cron: '0 */2 * * *'    # Ogni 2 ore
+on:   # Ogni 2 ore
   workflow_call:
     inputs:
       lookback-minutes:
@@ -37,7 +35,7 @@ permissions:
 
 jobs:
   scan-org-failures:
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     steps:
       - uses: actions/checkout@v4
 
