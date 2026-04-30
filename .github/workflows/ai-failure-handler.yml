@@ -136,6 +136,10 @@ jobs:
             ISSUE_BODY=$(printf '## Workflow fallito — rilevato automaticamente\n\n**Workflow**: %s\n**Run**: [#%s](%s)\n**Repository**: `%s`\n**Branch**: `%s`\n**Commit**: `%s`\n**Data rilevamento**: %s\n\n### Job e step falliti\n%s\n\n### Log di errore (ultimi 80 righe)\n```\n%s\n```\n\n### Istruzioni\nAnalizza il log di errore, identifica la causa root e proponi un fix.\n- Se e un errore di build (Maven, npm), controlla dipendenze e configurazione\n- Se e un errore di test, verifica il test e il codice sotto test\n- Se e un errore di deploy, verifica configurazione k8s e secrets\n- Se il problema e nel template centralizzato (platform-workflows), segnalalo senza modificare il template\n- Rispetta le convenzioni in `.github/copilot-instructions.md`\n' \
                 "$RUN_NAME" "$RUN_ID" "$RUN_URL" "$RUN_REPO" "$RUN_BRANCH" "$RUN_SHA" "$DETECTED" "$FAILED_JOBS" "$LOG_EXCERPT")
 
+            # Crea label copilot-auto e bug nelle repo dove viene richiamato il workflow
+            gh label create "copilot-auto" --repo "$RUN_REPO" --color "0075ca" --description "Auto-managed by AI" 2>/dev/null || true
+            gh label create "bug" --repo "$RUN_REPO" --color "d73a4a" --description "Something isn't working" 2>/dev/null || true
+            
             # Crea issue nel repo di origine del failure
             gh issue create \
               --repo "$RUN_REPO" \
