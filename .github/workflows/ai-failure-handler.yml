@@ -147,7 +147,7 @@ jobs:
               --body "$ISSUE_BODY" \
               --label "copilot-auto" \
               --label "bug" \
-              --assignee "copilot" 2>/dev/null && {
+              --assignee "copilot" && {
                 CREATED=$((CREATED + 1))
                 echo "  ✅ Issue creata"
               } || {
