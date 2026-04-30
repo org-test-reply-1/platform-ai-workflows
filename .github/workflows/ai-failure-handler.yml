@@ -50,7 +50,7 @@ jobs:
           echo "🔍 Scansione org: ${ORG}"
           echo "📅 Run falliti dal: ${SINCE}"
           echo ""
-
+          echo "GH_TOKEN is set? $([ -n "$GH_TOKEN" ] && echo yes || echo no)"
           # Recupera tutti i repo dell'org (con workflow abilitati)
           REPOS=$(gh repo list "$ORG" --limit 200 --json name --jq '.[].name')
 
