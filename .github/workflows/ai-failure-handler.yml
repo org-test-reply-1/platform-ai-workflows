@@ -27,6 +27,9 @@ on:
         required: false
         type: boolean
         default: false
+    secrets:
+      COPILOT_ASSIGN_PAT:
+        required: true
 
 permissions:
   contents: read
@@ -40,7 +43,7 @@ jobs:
 
       - name: Scan failed runs across org
         env:
-          GH_TOKEN: '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'
+          GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_PAT }}
         run: |
           ORG="${{ github.repository_owner }}"
           LOOKBACK="${{ inputs.lookback-minutes || 120 }}"
