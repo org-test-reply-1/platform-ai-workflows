@@ -15,7 +15,7 @@ name: Org-wide Failure Handler
 on:
   schedule:
     - cron: '0 */2 * * *'    # Ogni 2 ore
-  workflow_dispatch:
+  workflow_call:
     inputs:
       lookback-minutes:
         description: 'Minuti indietro da controllare (default: 120)'
