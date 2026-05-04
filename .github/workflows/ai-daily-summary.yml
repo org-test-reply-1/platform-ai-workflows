@@ -69,6 +69,12 @@ jobs:
           path: summary.md
           retention-days: 14
 
+      - name: Prepara messaggio Teams
+        if: always()
+        run: |
+          COMMIT_COUNT=$(git log --since="24 hours ago" --oneline | wc -l | tr -d ' ')
+          echo "TEAMS_COMMIT_COUNT=${COMMIT_COUNT}" >> "$GITHUB_ENV"
+
       - name: Notifica Teams
         if: always()
         uses: org-test-reply-1/platform-actions/notify-teams@main
