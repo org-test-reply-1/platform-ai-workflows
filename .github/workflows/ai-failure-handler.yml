@@ -28,6 +28,8 @@ on:   # Ogni 2 ore
     secrets:
       COPILOT_ASSIGN_PAT:
         required: true
+      TEAMS_WEBHOOK_URL:
+        required: true
 
 permissions:
   contents: read
@@ -189,3 +191,24 @@ jobs:
               done < new-failures.jsonl
             fi
           fi
+      - name: Prepara messaggio Teams
+        if: always()
+        run: |
+          if [ "${{ env.no_failures }}" = "true" ]; then
+            echo "TEAMS_TITLE=✅ Org OK" >> "$GITHUB_ENV"
+            echo "TEAMS_MESSAGE=Tutte le run della org sono andate a buon fine" >> "$GITHUB_ENV"
+            echo "TEAMS_COLOR=green" >> "$GITHUB_ENV"
+          else
+            echo "TEAMS_TITLE=❌ Workflow falliti rilevati" >> "$GITHUB_ENV"
+            echo "TEAMS_MESSAGE=Trovati ${{ env.errors }} fallimenti — controlla le issue su GitHub" >> "$GITHUB_ENV"
+            echo "TEAMS_COLOR=red" >> "$GITHUB_ENV"
+          fi
+
+      - name: Notifica Teams
+        if: always()
+        uses: org-test-reply-1/platform-actions/notify-teams@main
+        with:
+          webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          title: ${{ env.TEAMS_TITLE }}
+          message: ${{ env.TEAMS_MESSAGE }}
+          color: ${{ env.TEAMS_COLOR }}
