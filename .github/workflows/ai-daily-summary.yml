@@ -86,7 +86,8 @@ jobs:
         with:
           webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
           title: '📋 Daily Summary - ${{ github.repository }}'
-          message: 'Commit ultime 24 ore: ${{ env.TEAMS_COMMIT_COUNT }} | Repository: ${{ github.repository }} | ${{ env.TEAMS_SUMMARY }}'
+          message: 'Commit ultime 24 ore: ${{ env.TEAMS_COMMIT_COUNT }} | Repository: ${{ github.repository }}'
           color: 'green'
+          attachment: ${{ env.TEAMS_SUMMARY }}
         
       
