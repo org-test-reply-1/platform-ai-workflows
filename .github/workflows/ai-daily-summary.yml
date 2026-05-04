@@ -68,18 +68,6 @@ jobs:
           name: daily-summary-${{ github.run_id }}
           path: summary.md
           retention-days: 14
-      - name: Prepara messaggio Teams
-        if: always()
-        run: |
-          COMMIT_COUNT=$(git log --since="24 hours ago" --oneline | wc -l | tr -d ' ')
-          SUMMARY_CONTENT=$(cat summary.md 2>/dev/null || echo "Summary non disponibile")
-          ARTIFACT_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          echo "TEAMS_COMMIT_COUNT=${COMMIT_COUNT}" >> "$GITHUB_ENV"
-          SUMMARY_SHORT=$(echo "$SUMMARY_CONTENT" | head -c 1000)
-          echo "TEAMS_SUMMARY<<EOF" >> "$GITHUB_ENV"
-          echo "$SUMMARY_SHORT" >> "$GITHUB_ENV"
-          echo "Scarica il summary completo: ${ARTIFACT_URL}" >> "$GITHUB_ENV"
-          echo "EOF" >> "$GITHUB_ENV"
 
       - name: Notifica Teams
         if: always()
@@ -87,8 +75,7 @@ jobs:
         with:
           webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
           title: '📋 Daily Summary - ${{ github.repository }}'
-          message: 'Commit ultime 24 ore: ${{ env.TEAMS_COMMIT_COUNT }} | Repository: ${{ github.repository }}'
+          message: 'Commit ultime 24 ore: ${{ env.TEAMS_COMMIT_COUNT }} | Repository: ${{ github.repository }} | 👉 Scarica il summary completo: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'
           color: 'green'
-          attachment: ${{ env.TEAMS_SUMMARY }}
         
       
