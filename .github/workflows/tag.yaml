@@ -1,0 +1,12 @@
+name: Tag repo
+run-name: tag-workflow
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  runs-on: ubuntu-latest
+  call-workflow:
+    uses: org-test-reply-1/platform-action/tag-repo@main
