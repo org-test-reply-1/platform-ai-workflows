@@ -6,7 +6,12 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   call-workflow:
     runs-on: ubuntu-latest
     uses: org-test-reply-1/platform-action/tag-repo@main
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
