@@ -7,6 +7,6 @@ on:
       - main
 
 jobs:
-  runs-on: ubuntu-latest
   call-workflow:
+    runs-on: ubuntu-latest
     uses: org-test-reply-1/platform-action/tag-repo@main
