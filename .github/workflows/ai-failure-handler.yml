@@ -199,8 +199,18 @@ jobs:
             echo "TEAMS_MESSAGE=Tutte le run della org sono andate a buon fine" >> "$GITHUB_ENV"
             echo "TEAMS_COLOR=green" >> "$GITHUB_ENV"
           else
+            FAILURE_LIST=""
+            if [ -f "new-failures.jsonl" ]; then
+              while IFS= read -r f; do
+                REPO=$(echo "$f" | jq -r '.repo')
+                NAME=$(echo "$f" | jq -r '.name')
+                ID=$(echo "$f" | jq -r '.id')
+                URL=$(echo "$f" | jq -r '.url')
+                FAILURE_LIST="${FAILURE_LIST}• ${REPO} — ${NAME} (run #${ID})\n"
+              done < new-failures.jsonl
+            fi
             echo "TEAMS_TITLE=❌ Workflow falliti rilevati" >> "$GITHUB_ENV"
-            echo "TEAMS_MESSAGE=Trovati ${{ env.errors }} fallimenti — controlla le issue su GitHub" >> "$GITHUB_ENV"
+            echo "TEAMS_MESSAGE=Trovati ${{ env.errors }} fallimenti:\n${FAILURE_LIST}" >> "$GITHUB_ENV"
             echo "TEAMS_COLOR=red" >> "$GITHUB_ENV"
           fi
 
