@@ -8,6 +8,8 @@ on:
     secrets:
       COPILOT_ASSIGN_PAT:
         required: true
+      TEAMS_WEBHOOK_URL:
+        required: true
 
 permissions:
   contents: read
