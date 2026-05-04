@@ -66,3 +66,13 @@ jobs:
           name: daily-summary-${{ github.run_id }}
           path: summary.md
           retention-days: 14
+      - name: Notifica Teams
+        if: always()
+        uses: org-test-reply-1/platform-actions/notify-teams@main
+        with:
+          webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          title: 'Daily Summary pronto - ${{ github.repository }}'
+          message: 'Il report giornaliero dei cambiamenti è stato generato. Controlla il summary su GitHub Actions'
+          color: 'green'
+        
+      
