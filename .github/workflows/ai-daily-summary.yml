@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: '30 17 * * 1-5'   # Lun-Ven alle 17:30 UTC
   workflow_dispatch:
+  workflow_call:
+    secrets:
+      COPILOT_ASSIGN_PAT:
+        required: true
 
 permissions:
   contents: read
@@ -13,10 +17,10 @@ jobs:
   summary:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout test-runner
+      - name: Checkout repo chiamante
         uses: actions/checkout@v4
         with:
-          repository: org-test-reply-1/test-runner
+          repository: ${{ github.repository }}
           token: ${{ secrets.COPILOT_ASSIGN_PAT }}
           fetch-depth: 0
 
@@ -25,15 +29,16 @@ jobs:
         with:
           copilot-token: ${{ secrets.COPILOT_ASSIGN_PAT }}
 
-      - name: Recupera commit ultime 24 ore
+      - name: Genera summary
         env:
           GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_PAT }}
+          REPO: ${{ github.repository }}
         run: |
           echo "## 📋 Commit ultime 24 ore" > summary.md
           echo "" >> summary.md
 
           git log --since="24 hours ago" \
-            --pretty=format:"- [%s](https://github.com/org-test-reply-1/test-runner/commit/%H) — %an — %ar" \
+            --pretty=format:"- [%s](https://github.com/${REPO}/commit/%H) — %an — %ar" \
             >> summary.md || echo "- Nessun commit nelle ultime 24 ore" >> summary.md
 
           echo "" >> summary.md
@@ -41,7 +46,7 @@ jobs:
           echo "## ❌ Workflow falliti oggi" >> summary.md
           echo "" >> summary.md
 
-          gh run list --repo org-test-reply-1/test-runner \
+          gh run list --repo "$REPO" \
             --status failure \
             --created "$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -v-24H '+%Y-%m-%dT%H:%M:%SZ')" \
             --json displayTitle,url,createdAt \
