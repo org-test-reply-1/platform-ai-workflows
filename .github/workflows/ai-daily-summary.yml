@@ -80,7 +80,7 @@ jobs:
         uses: org-test-reply-1/platform-actions/notify-teams@main
         with:
           webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
-          title: '📋 Daily Summary - ${{ github.repository }}'
+          title: '📋 Daily Summary — ${{ github.repository }}'
           message: 'Commit ultime 24 ore: ${{ env.TEAMS_COMMIT_COUNT }} | Repository: ${{ github.repository }} | 👉 Scarica il summary completo: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'
           color: 'green'
         
