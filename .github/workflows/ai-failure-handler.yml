@@ -234,22 +234,24 @@ jobs:
         run: |
           if [ "${{ env.no_failures }}" = "true" ]; then
             echo "TEAMS_TITLE=✅ Org OK" >> "$GITHUB_ENV"
-            echo "TEAMS_MESSAGE=Tutte le run della org sono andate a buon fine" >> "$GITHUB_ENV"
+            echo "TEAMS_MESSAGE=Nessun workflow fallito nelle ultime 2 ore." >> "$GITHUB_ENV"
             echo "TEAMS_COLOR=green" >> "$GITHUB_ENV"
           else
             FAILURE_LIST=""
             if [ -f "new-failures.jsonl" ]; then
               while IFS= read -r f; do
-                REPO=$(echo "$f" | jq -r '.repo')
+                REPO=$(echo "$f" | jq -r '.repo' | sed 's|org-test-reply-1/||')
                 NAME=$(echo "$f" | jq -r '.name')
                 ID=$(echo "$f" | jq -r '.id')
                 URL=$(echo "$f" | jq -r '.url')
-                FAILURE_LIST="${FAILURE_LIST}• ${REPO} — ${NAME} (run #${ID})\n"
+                FAILURE_LIST="${FAILURE_LIST}• ${REPO} — ${NAME} (run #${ID}) ${URL}\n"
               done < new-failures.jsonl
             fi
-            echo "TEAMS_TITLE=❌ Workflow falliti rilevati" >> "$GITHUB_ENV"
-            FAILURE_COUNT=$(wc -l < new-failures.jsonl)
-            echo "TEAMS_MESSAGE=Trovati ${FAILURE_COUNT} fallimenti:\n${FAILURE_LIST}" >> "$GITHUB_ENV"
+            FAILURE_COUNT=$(wc -l < new-failures.jsonl | tr -d ' ')
+            ORG="${{ github.repository_owner }}"
+            echo "TEAMS_TITLE=❌ Workflow falliti rilevati — ${ORG}" >> "$GITHUB_ENV"
+            echo "TEAMS_MESSAGE=Trovati ${FAILURE_COUNT} fallimenti nelle ultime 2 ore:\n\n${FAILURE_LIST}\n👉 Controlla le issue: https://github.com/${ORG}/test-runner/issues" >> "$GITHUB_ENV"
+            echo "TEAMS_COLOR=red" >> "$GITHUB_ENV"
           fi
 
       - name: Notifica Teams
