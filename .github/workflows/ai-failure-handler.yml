@@ -162,7 +162,7 @@ jobs:
           echo "created=${CREATED}" >> "$GITHUB_ENV"
           echo "errors=${ERRORS}" >> "$GITHUB_ENV"
 
-            - name: Triggera Copilot sulle issue create
+      - name: Triggera Copilot sulle issue create
         if: env.no_failures != 'true' && inputs.dry-run != true
         env:
           GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_PAT }}
