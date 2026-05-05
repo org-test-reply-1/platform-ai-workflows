@@ -174,7 +174,7 @@ jobs:
 
           while IFS= read -r issue_url; do
             echo "🤖 Assegnando Copilot alla issue: ${issue_url}"
-            gh issue edit "${issue_url}" --add-assignee "copilot-swe-agent" \
+            gh issue edit "${issue_url}" --add-assignee "Copilot" \
               && echo "  ✅ Copilot assegnato" \
               || echo "  ⚠️ Errore assegnazione Copilot"
           done < created-issues.txt
