@@ -36,7 +36,7 @@ jobs:
           agent-file: .github/agents/security-reporter.agent.md
           task-prompt: |
             Scansiona i file in ${{ inputs.scan-paths }}.
-            Contesto: progetto Java/Maven e Node.js, deploy su Kubernetes.
+            Contesto: progetto .NET con test.
           output-file: security-report.md
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
