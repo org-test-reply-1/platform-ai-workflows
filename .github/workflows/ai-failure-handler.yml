@@ -174,24 +174,9 @@ jobs:
 
           while IFS= read -r issue_url; do
             echo "🤖 Assegnando Copilot alla issue: ${issue_url}"
-            
-            # Estrai owner, repo e numero issue dall'URL
-            ISSUE_NUMBER=$(echo "$issue_url" | grep -oE '[0-9]+$')
-            REPO_PATH=$(echo "$issue_url" | sed 's|https://github.com/||' | sed 's|/issues/.*||')
-            
-            # Usa GraphQL per assegnare il Copilot coding agent
-            gh api graphql -f query='
-              mutation {
-                assignCopilotToIssue(input: {
-                  issueId: "'"$(gh api /repos/${REPO_PATH}/issues/${ISSUE_NUMBER} --jq '.node_id')"'"
-                }) {
-                  issue {
-                    number
-                  }
-                }
-              }
-            ' && echo "  ✅ Copilot assegnato" || echo "  ⚠️ Errore assegnazione Copilot"
-
+            gh issue edit "${issue_url}" --add-assignee "copilot-swe-agent" \
+              && echo "  ✅ Copilot assegnato" \
+              || echo "  ⚠️ Errore assegnazione Copilot"
           done < created-issues.txt
       
       - name: Prepara messaggio Teams
