@@ -16,29 +16,40 @@ on:
         default: false    # NON-BLOCCANTE di default
     secrets:
       COPILOT_GITHUB_TOKEN:
-        required: true
+        required: false
 
 permissions:
   contents: read
+  id-token: write
+  actions: read
+  security-events: write
 
 jobs:
   security-scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
 
-      - uses: org-test-reply-1/platform-actions/copilot-cli-setup@main
+      - name: Setup Copilot CLI
+        uses: org-test-reply-1/platform-actions/copilot-cli-setup@main
         with:
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
-      - uses: org-test-reply-1/platform-actions/copilot-run-agent@main
+      - name: Run Copilot Agent
+        uses: org-test-reply-1/platform-actions/copilot-run-agent@main
         with:
           agent-file: .github/agents/security-reporter.agent.md
           task-prompt: |
-            Scansiona i file in ${{ inputs.scan-paths }}.
-            Contesto: progetto .NET con test.
+            Scansiona tutti i file in ${{ inputs.scan-paths }}.
+            Analizza l'intero codice della repository (inclusi workflow, script, Dockerfile, progetti .NET e test) e segnala criticità, vulnerabilità, debolezze di sicurezza e punti migliorabili.
+            Fornisci suggerimenti pratici e priorità per la remediation.
           output-file: security-report.md
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Publish report
         if: always()
