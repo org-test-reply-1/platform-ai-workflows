@@ -153,7 +153,7 @@ jobs:
                 echo "${ISSUE_URL}" >> created-issues.txt
               } || {
                 ERRORS=$((ERRORS + 1))
-                echo "  ⚠️ Errore creazione issue"
+                echo "  ⚠️ Errore creazione issue ${ISSUE_URL}"
               }
 
           done < new-failures.jsonl
