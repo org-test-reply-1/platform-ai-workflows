@@ -1,3 +1,9 @@
+      - name: Debug Copilot CLI
+        run: |
+          echo "Token usato: ${COPILOT_GITHUB_TOKEN:-$GITHUB_TOKEN}"
+          gh copilot --version || echo "Copilot CLI non disponibile"
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 # platform-ai-workflows/.github/workflows/ai-security-scan.yml
 name: AI Security Scan
 
@@ -53,7 +59,12 @@ jobs:
 
       - name: Publish report
         if: always()
-        run: cat security-report.md >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo '--- Copilot CLI Output ---' >> "$GITHUB_STEP_SUMMARY"
+          cat security-report.md >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '--- Copilot CLI Debug ---' >> "$GITHUB_STEP_SUMMARY"
+          cat copilot-debug.log 2>/dev/null || echo 'Nessun log di debug.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload report artifact
         if: always()
