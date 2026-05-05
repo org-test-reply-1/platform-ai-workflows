@@ -237,6 +237,9 @@ jobs:
             echo "TEAMS_MESSAGE=Nessun workflow fallito nelle ultime 2 ore." >> "$GITHUB_ENV"
             echo "TEAMS_COLOR=green" >> "$GITHUB_ENV"
           else
+            FAILURE_COUNT=$(wc -l < new-failures.jsonl | tr -d ' ')
+            ORG="${{ github.repository_owner }}"
+            
             FAILURE_LIST=""
             if [ -f "new-failures.jsonl" ]; then
               while IFS= read -r f; do
@@ -244,13 +247,22 @@ jobs:
                 NAME=$(echo "$f" | jq -r '.name')
                 ID=$(echo "$f" | jq -r '.id')
                 URL=$(echo "$f" | jq -r '.url')
-                FAILURE_LIST="${FAILURE_LIST}• ${REPO} — ${NAME} (run #${ID}) ${URL}\n"
+                FAILURE_LIST="${FAILURE_LIST}• ${REPO} — ${NAME} ([run #${ID}](${URL}))  \n"
               done < new-failures.jsonl
             fi
-            FAILURE_COUNT=$(wc -l < new-failures.jsonl | tr -d ' ')
-            ORG="${{ github.repository_owner }}"
+
+            ISSUE_URL="https://github.com/${ORG}"
+            {
+              echo "TEAMS_MESSAGE<<EOF"
+              echo "Trovati ${FAILURE_COUNT} fallimenti nelle ultime 2 ore:"
+              echo ""
+              printf '%b' "${FAILURE_LIST}"
+              echo ""
+              echo "👉 Controlla le issue: ${ISSUE_URL}/test-runner/issues"
+              echo "EOF"
+            } >> "$GITHUB_ENV"
+            
             echo "TEAMS_TITLE=❌ Workflow falliti rilevati — ${ORG}" >> "$GITHUB_ENV"
-            echo "TEAMS_MESSAGE=Trovati ${FAILURE_COUNT} fallimenti nelle ultime 2 ore:\n\n${FAILURE_LIST}\n👉 Controlla le issue: https://github.com/${ORG}/test-runner/issues" >> "$GITHUB_ENV"
             echo "TEAMS_COLOR=red" >> "$GITHUB_ENV"
           fi
 
