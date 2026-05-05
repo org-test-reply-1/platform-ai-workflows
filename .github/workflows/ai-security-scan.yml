@@ -1,0 +1,67 @@
+# platform-ai-workflows/.github/workflows/ai-security-scan.yml
+name: AI Security Scan
+
+on:
+  workflow_call:
+    inputs:
+      scan-paths:
+        description: 'Path da scansionare (default: tutto il repo)'
+        required: false
+        type: string
+        default: '.'
+      fail-on-critical:
+        description: 'Fallire se trovate vulnerabilità critiche'
+        required: false
+        type: boolean
+        default: false    # NON-BLOCCANTE di default
+    secrets:
+      COPILOT_GITHUB_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: myorg/platform-actions/copilot-cli-setup@v1
+        with:
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - uses: myorg/platform-actions/copilot-run-agent@v1
+        with:
+          agent-file: .github/agents/security-reporter.agent.md
+          task-prompt: |
+            Scansiona i file in ${{ inputs.scan-paths }}.
+            Contesto: progetto Java/Maven e Node.js, deploy su Kubernetes.
+          output-file: security-report.md
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Publish report
+        if: always()
+        run: cat security-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-security-report-${{ github.run_id }}
+          path: security-report.md
+          retention-days: 30
+
+      - name: Check for critical vulnerabilities
+        if: inputs.fail-on-critical
+        run: |
+          if [ ! -f "security-report.md" ]; then
+            echo "⚠️ Report non generato"
+            exit 0
+          fi
+          if grep -q "THIS ASSESSMENT CONTAINS A CRITICAL VULNERABILITY" security-report.md; then
+            echo "❌ Vulnerabilità critica rilevata — build bloccata"
+            exit 1
+          else
+            echo "✅ Nessuna vulnerabilità critica"
+          fi
