@@ -1,9 +1,3 @@
-      - name: Debug Copilot CLI
-        run: |
-          echo "Token usato: ${COPILOT_GITHUB_TOKEN:-$GITHUB_TOKEN}"
-          gh copilot --version || echo "Copilot CLI non disponibile"
-        env:
-          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 # platform-ai-workflows/.github/workflows/ai-security-scan.yml
 name: AI Security Scan
 
