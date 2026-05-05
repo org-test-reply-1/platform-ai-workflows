@@ -36,7 +36,7 @@ jobs:
     if: inputs.enable-ai-scan != false || github.event_name != 'workflow_dispatch'
     uses: org-test-reply-1/platform-ai-workflows/.github/workflows/ai-security-scan.yml@main
     with:
-      scan-paths: '.'
+      scan-paths: ${{ inputs.scan-paths || '.' }}
       fail-on-critical: ${{ inputs.fail-on-critical || false }}
     permissions:
       contents: read
