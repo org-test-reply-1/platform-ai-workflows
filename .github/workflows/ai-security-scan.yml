@@ -27,11 +27,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: org-test-reply-1/platform-actions/copilot-cli-setup@v1
+      - uses: org-test-reply-1/platform-actions/copilot-cli-setup@main
         with:
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-      - uses: org-test-reply-1/platform-actions/copilot-run-agent@v1
+      - uses: org-test-reply-1/platform-actions/copilot-run-agent@main
         with:
           agent-file: .github/agents/security-reporter.agent.md
           task-prompt: |
