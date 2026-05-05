@@ -162,7 +162,7 @@ jobs:
           echo "created=${CREATED}" >> "$GITHUB_ENV"
           echo "errors=${ERRORS}" >> "$GITHUB_ENV"
 
-      - name: Triggera Copilot sulle issue create
+            - name: Triggera Copilot sulle issue create
         if: env.no_failures != 'true' && inputs.dry-run != true
         env:
           GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_PAT }}
@@ -191,27 +191,34 @@ jobs:
               --jq '.data.repository.issue.id')
 
             if [ -z "$ISSUE_NODE_ID" ]; then
-              echo "  ⚠️ Impossibile ottenere node ID per issue #${ISSUE_NUM} in ${REPO_FULL}"
+              echo "  ⚠️ Impossibile ottenere node ID per issue #${ISSUE_NUM}"
               continue
             fi
 
-            # Ottieni il Copilot actor ID dal repo tramite suggestedActors
+            # Ottieni il Copilot actor ID con inline fragment (Actor non ha 'id')
             COPILOT_ID=$(gh api graphql \
               -H "GraphQL-Features: issues_copilot_assignment_api_support,coding_agent_model_selection" \
               -f query='
               query($owner: String!, $repo: String!) {
                 repository(owner: $owner, name: $repo) {
                   suggestedActors(first: 10, capabilities: [CAN_BE_ASSIGNED]) {
-                    nodes { login id }
+                    nodes {
+                      login
+                      ... on Bot { id }
+                      ... on User { id }
+                      ... on Mannequin { id }
+                    }
                   }
                 }
               }' -f owner="$OWNER" -f repo="$REPO_NAME" \
               --jq '.data.repository.suggestedActors.nodes[] | select(.login == "copilot-swe-agent") | .id')
 
             if [ -z "$COPILOT_ID" ]; then
-              echo "  ⚠️ Copilot agent non disponibile in ${REPO_FULL}. Verifica che Copilot cloud agent sia abilitato per questo repo."
+              echo "  ⚠️ Copilot agent non disponibile in ${REPO_FULL}"
               continue
             fi
+
+            echo "  📎 Copilot ID: ${COPILOT_ID}"
 
             # Assegna Copilot all'issue via GraphQL mutation
             gh api graphql \
