@@ -222,18 +222,10 @@ jobs:
 
             # Assegna Copilot all'issue via GraphQL mutation
             gh api graphql \
-              -H "GraphQL-Features: issues_copilot_assignment_api_support,coding_agent_model_selection" \
-              -f query='
-              mutation($issueId: ID!, $assigneeIds: [ID!]!) {
-                addAssigneesToAssignable(input: {
-                  assignableId: $issueId,
-                  assigneeIds: $assigneeIds
-                }) {
-                  clientMutationId
-                }
-              }' -f issueId="$ISSUE_NODE_ID" -f assigneeIds="[\"$COPILOT_ID\"]" \
-              && echo "  ✅ Copilot assegnato con successo" \
-              || echo "  ⚠️ Errore assegnazione Copilot"
+            -H "GraphQL-Features: issues_copilot_assignment_api_support,coding_agent_model_selection" \
+            -f query="mutation { addAssigneesToAssignable(input: { assignableId: \"$ISSUE_NODE_ID\", assigneeIds: [\"$COPILOT_ID\"] }) { clientMutationId } }" \
+            && echo "  ✅ Copilot assegnato" \
+            || echo "  ⚠️ Errore assegnazione Copilot"
 
           done < created-issues.txt
       
