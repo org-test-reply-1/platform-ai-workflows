@@ -147,7 +147,7 @@ jobs:
               --body "$ISSUE_BODY" \
               --label "copilot-auto" \
               --label "bug" \
-              --assignee "copilot") && { && {
+              --assignee "copilot")2&1) && {
                 CREATED=$((CREATED + 1))
                 echo "  ✅ Issue creata: ${ISSUE_URL}"
                 echo "${ISSUE_URL}" >> created-issues.txt
