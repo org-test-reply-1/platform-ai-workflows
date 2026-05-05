@@ -13,71 +13,45 @@ on:
         description: 'Fallire se trovate vulnerabilità critiche'
         required: false
         type: boolean
-        default: false    # NON-BLOCCANTE di default
+        default: false
     secrets:
-      COPILOT_GITHUB_TOKEN:
-        required: false
+      COPILOT_ASSIGN_PAT:
+        required: true
 
 permissions:
   contents: read
-  id-token: write
+  issues: write
   actions: read
-  security-events: write
 
 jobs:
   security-scan:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
+      issues: write
       actions: read
-      security-events: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Copilot CLI
-        uses: org-test-reply-1/platform-actions/copilot-cli-setup@main
-        with:
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-
-      - name: Run Copilot Agent
+      - name: Run Copilot Agent (Issue + Coding Agent)
         uses: org-test-reply-1/platform-actions/copilot-run-agent@main
         with:
-          agent-file: .github/agents/security-reporter.agent.md
+          scan-paths: ${{ inputs.scan-paths }}
+          assign-pat: ${{ secrets.COPILOT_ASSIGN_PAT }}
           task-prompt: |
-            Scansiona tutti i file in ${{ inputs.scan-paths }}.
-            Analizza l'intero codice della repository (inclusi workflow, script, Dockerfile, progetti .NET e test) e segnala criticità, vulnerabilità, debolezze di sicurezza e punti migliorabili.
-            Fornisci suggerimenti pratici e priorità per la remediation.
-          output-file: security-report.md
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+            ## 🔍 Analisi completa del codice sorgente
 
-      - name: Publish report
-        if: always()
-        run: |
-          echo '--- Copilot CLI Output ---' >> "$GITHUB_STEP_SUMMARY"
-          cat security-report.md >> "$GITHUB_STEP_SUMMARY"
-          echo '' >> "$GITHUB_STEP_SUMMARY"
-          echo '--- Copilot CLI Debug ---' >> "$GITHUB_STEP_SUMMARY"
-          cat copilot-debug.log 2>/dev/null || echo 'Nessun log di debug.' >> "$GITHUB_STEP_SUMMARY"
+            Scansiona **tutto** il codice sorgente di questa repository in ${{ inputs.scan-paths }}.
+            Analizza l'intero codice (inclusi workflow, script, Dockerfile, progetti .NET e test).
 
-      - name: Upload report artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ai-security-report-${{ github.run_id }}
-          path: security-report.md
-          retention-days: 30
+            ### Obiettivi:
+            1. **Sicurezza**: vulnerabilità, secrets hardcoded, injection, misconfiguration
+            2. **Qualità del codice**: code smells, duplicazioni, complessità eccessiva
+            3. **Best practices**: pattern mancanti, configurazioni non ottimali
+            4. **Pipeline**: problemi nei workflow, permessi eccessivi, mancanza di validazioni
 
-      - name: Check for critical vulnerabilities
-        if: inputs.fail-on-critical
-        run: |
-          if [ ! -f "security-report.md" ]; then
-            echo "⚠️ Report non generato"
-            exit 0
-          fi
-          if grep -q "THIS ASSESSMENT CONTAINS A CRITICAL VULNERABILITY" security-report.md; then
-            echo "❌ Vulnerabilità critica rilevata — build bloccata"
-            exit 1
-          else
-            echo "✅ Nessuna vulnerabilità critica"
-          fi
+            ### Output richiesto:
+            - Report con severity (CRITICAL, HIGH, MEDIUM, LOW)
+            - Per ogni problema: descrizione, file, linea, fix suggerito
+            - **Apri una Pull Request** con i fix per problemi CRITICAL e HIGH
+            - Se trovi vulnerabilità critiche, aggiungi nel commento: "THIS ASSESSMENT CONTAINS A CRITICAL VULNERABILITY"
