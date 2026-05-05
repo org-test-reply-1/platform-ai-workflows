@@ -173,41 +173,27 @@ jobs:
           fi
 
           while IFS= read -r issue_url; do
-            echo "🤖 Triggerando Copilot su: ${issue_url}"
-            gh issue comment "${issue_url}" \
-              --body "@copilot Please analyze this issue, identify the root cause from the logs and open a PR with a fix."
-            echo "  ✅ Copilot triggerato"
+            echo "🤖 Assegnando Copilot alla issue: ${issue_url}"
+            
+            # Estrai owner, repo e numero issue dall'URL
+            ISSUE_NUMBER=$(echo "$issue_url" | grep -oE '[0-9]+$')
+            REPO_PATH=$(echo "$issue_url" | sed 's|https://github.com/||' | sed 's|/issues/.*||')
+            
+            # Usa GraphQL per assegnare il Copilot coding agent
+            gh api graphql -f query='
+              mutation {
+                assignCopilotToIssue(input: {
+                  issueId: "'"$(gh api /repos/${REPO_PATH}/issues/${ISSUE_NUMBER} --jq '.node_id')"'"
+                }) {
+                  issue {
+                    number
+                  }
+                }
+              }
+            ' && echo "  ✅ Copilot assegnato" || echo "  ⚠️ Errore assegnazione Copilot"
+
           done < created-issues.txt
-
-      - name: Summary
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_PAT }}
-        run: |
-          echo "## Org-wide Failure Handler" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-
-          if [ "${{ env.no_failures }}" = "true" ]; then
-            echo "✅ Nessun run fallito non gestito trovato." >> "$GITHUB_STEP_SUMMARY"
-          elif [ "${{ inputs.dry-run }}" = "true" ]; then
-            echo "🔍 **Dry run** — nessuna issue creata." >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            if [ -f "new-failures.jsonl" ]; then
-              echo "### Run falliti rilevati" >> "$GITHUB_STEP_SUMMARY"
-              while IFS= read -r f; do
-                echo "- **$(echo "$f" | jq -r '.repo')**: $(echo "$f" | jq -r '.name') — [run #$(echo "$f" | jq -r '.id')]($(echo "$f" | jq -r '.url'))" >> "$GITHUB_STEP_SUMMARY"
-              done < new-failures.jsonl
-            fi
-          else
-            echo "Issue create: **${created:-0}** | Errori: **${errors:-0}**" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            if [ -f "new-failures.jsonl" ]; then
-              echo "### Run processati" >> "$GITHUB_STEP_SUMMARY"
-              while IFS= read -r f; do
-                echo "- **$(echo "$f" | jq -r '.repo')**: $(echo "$f" | jq -r '.name') — [run #$(echo "$f" | jq -r '.id')]($(echo "$f" | jq -r '.url'))" >> "$GITHUB_STEP_SUMMARY"
-              done < new-failures.jsonl
-            fi
-          fi
+      
       - name: Prepara messaggio Teams
         if: always()
         run: |
