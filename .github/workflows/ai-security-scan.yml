@@ -38,7 +38,7 @@ jobs:
       - name: Setup Copilot CLI
         uses: org-test-reply-1/platform-actions/copilot-cli-setup@main
         with:
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          copilot-token: ${{ secrets.COPILOT_ASSIGN_PAT || secrets.COPILOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Run Copilot Agent
         uses: org-test-reply-1/platform-actions/copilot-run-agent@main
@@ -49,7 +49,7 @@ jobs:
             Analizza l'intero codice della repository (inclusi workflow, script, Dockerfile, progetti .NET e test) e segnala criticità, vulnerabilità, debolezze di sicurezza e punti migliorabili.
             Fornisci suggerimenti pratici e priorità per la remediation.
           output-file: security-report.md
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          copilot-token: ${{ secrets.COPILOT_ASSIGN_PAT || secrets.COPILOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Publish report
         if: always()
