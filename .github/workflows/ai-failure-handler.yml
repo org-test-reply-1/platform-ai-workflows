@@ -146,14 +146,13 @@ jobs:
               --title "Auto-fix: ${RUN_NAME} fallito (run #${RUN_ID})" \
               --body "$ISSUE_BODY" \
               --label "copilot-auto" \
-              --label "bug" \
-              --assignee "copilot" 2>&1) && {
+              --label "bug" 2>&1) && {
                 CREATED=$((CREATED + 1))
                 echo "  ✅ Issue creata: ${ISSUE_URL}"
                 echo "${ISSUE_URL}" >> created-issues.txt
               } || {
                 ERRORS=$((ERRORS + 1))
-                echo "  ⚠️ Errore creazione issue ${ISSUE_URL}"
+                echo "  ⚠️ Errore creazione issue: ${ISSUE_URL}"
               }
 
           done < new-failures.jsonl
