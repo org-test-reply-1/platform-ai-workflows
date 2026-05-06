@@ -2,8 +2,6 @@
 name: AI Security Scan
 
 on:
-  schedule:
-    - cron: '30 8  * * 1-5'
   workflow_call:
     inputs:
       scan-paths:
