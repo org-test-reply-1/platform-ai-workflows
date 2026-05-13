@@ -14,7 +14,7 @@ on:
         type: boolean
         default: false
       target-repo:
-        description: 'Repository da scansionare (es. org-test-reply-1/storefront-app). Se vuoto scansiona tutta la org.'
+        description: 'Repository da scansionare. Se vuoto scansiona tutta la org.'
         required: false
         type: string
         default: ''
@@ -34,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Scan failed runs across org
+      - name: Scan failed runs
         env:
           GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_PAT }}
         run: |
@@ -43,20 +43,18 @@ jobs:
           SINCE=$(date -u -d "${LOOKBACK} minutes ago" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || \
                   date -u -v-${LOOKBACK}M '+%Y-%m-%dT%H:%M:%SZ')
 
-          echo "🔍 Scansione org: ${ORG}"
-          echo "📅 Run falliti dal: ${SINCE}"
-          echo ""
-          echo "GH_TOKEN is set? $([ -n "$GH_TOKEN" ] && echo yes || echo no)"
-
-          # Se target-repo è specificato, scansiona solo quello
           TARGET_REPO="${{ inputs.target-repo }}"
+
           if [ -n "$TARGET_REPO" ]; then
-            echo "🎯 Scansione limitata a: ${TARGET_REPO}"
+            echo "🔍 Scansione repository: ${TARGET_REPO}"
             REPOS=$(echo "$TARGET_REPO" | sed 's|.*/||')
           else
-            echo "🌐 Scansione intera org"
+            echo "🔍 Scansione org: ${ORG}"
             REPOS=$(gh repo list "$ORG" --limit 200 --json name --jq '.[].name')
           fi
+
+          echo "📅 Run falliti dal: ${SINCE}"
+          echo "GH_TOKEN is set? $([ -n "$GH_TOKEN" ] && echo yes || echo no)"
 
           echo '[]' > all-failures.json
 
@@ -89,16 +87,21 @@ jobs:
 
           if [ -f "new-failures.jsonl" ]; then
             TOTAL=$(wc -l < new-failures.jsonl)
-            echo ""
             echo "📊 Run falliti da processare: ${TOTAL}"
           else
-            echo ""
             echo "✅ Nessun run fallito non gestito trovato"
             echo "no_failures=true" >> "$GITHUB_ENV"
           fi
 
-      - name: Create issues for each failure
-        if: env.no_failures != 'true' && inputs.dry-run != true
+          # Salva se siamo in modalità repo singola o org
+          if [ -n "$TARGET_REPO" ]; then
+            echo "mode=repo" >> "$GITHUB_ENV"
+          else
+            echo "mode=org" >> "$GITHUB_ENV"
+          fi
+
+      - name: Create issues and assign Copilot
+        if: env.no_failures != 'true' && env.mode == 'repo' && inputs.dry-run != true
         env:
           GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_PAT }}
         run: |
@@ -149,13 +152,12 @@ jobs:
 
           done < new-failures.jsonl
 
-          echo ""
           echo "📊 Riepilogo: ${CREATED} issue create, ${ERRORS} errori"
           echo "created=${CREATED}" >> "$GITHUB_ENV"
           echo "errors=${ERRORS}" >> "$GITHUB_ENV"
 
       - name: Triggera Copilot sulle issue create
-        if: env.no_failures != 'true' && inputs.dry-run != true
+        if: env.no_failures != 'true' && env.mode == 'repo' && inputs.dry-run != true
         env:
           GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_PAT }}
         run: |
@@ -221,8 +223,13 @@ jobs:
         if: always()
         run: |
           if [ "${{ env.no_failures }}" = "true" ]; then
-            echo "TEAMS_TITLE=✅ Org OK" >> "$GITHUB_ENV"
-            echo "TEAMS_MESSAGE=Nessun workflow fallito nelle ultime 2 ore." >> "$GITHUB_ENV"
+            if [ "${{ env.mode }}" = "repo" ]; then
+              echo "TEAMS_TITLE=✅ Repository OK" >> "$GITHUB_ENV"
+              echo "TEAMS_MESSAGE=Nessun workflow fallito in ${{ inputs.target-repo }}." >> "$GITHUB_ENV"
+            else
+              echo "TEAMS_TITLE=✅ Org OK" >> "$GITHUB_ENV"
+              echo "TEAMS_MESSAGE=Nessun workflow fallito nelle ultime 2 ore." >> "$GITHUB_ENV"
+            fi
             echo "TEAMS_COLOR=green" >> "$GITHUB_ENV"
           else
             FAILURE_COUNT=$(wc -l < new-failures.jsonl | tr -d ' ')
@@ -245,6 +252,12 @@ jobs:
               REPO_LINKS="${REPO_LINKS}• https://github.com/${REPO}/issues\n"
             done < <(jq -s 'unique_by(.repo)[]' new-failures.jsonl)
 
+            if [ "${{ env.mode }}" = "repo" ]; then
+              TITLE="❌ Workflow fallito — ${{ inputs.target-repo }}"
+            else
+              TITLE="❌ Workflow falliti rilevati — ${ORG}"
+            fi
+
             {
               echo "TEAMS_MESSAGE<<EOF"
               echo "Trovati ${FAILURE_COUNT} fallimenti nelle ultime 2 ore:"
@@ -256,7 +269,7 @@ jobs:
               echo "EOF"
             } >> "$GITHUB_ENV"
 
-            echo "TEAMS_TITLE=❌ Workflow falliti rilevati — ${ORG}" >> "$GITHUB_ENV"
+            echo "TEAMS_TITLE=${TITLE}" >> "$GITHUB_ENV"
             echo "TEAMS_COLOR=red" >> "$GITHUB_ENV"
           fi
 
