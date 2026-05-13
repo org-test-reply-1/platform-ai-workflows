@@ -85,7 +85,7 @@ jobs:
             done
           done
 
-          if [ -f "new-failures.jsonl" ]; then
+          if [ -f "new-failures.jsonl" ] && [ -s "new-failures.jsonl" ]; then
             TOTAL=$(wc -l < new-failures.jsonl)
             echo "📊 Run falliti da processare: ${TOTAL}"
           else
@@ -93,7 +93,6 @@ jobs:
             echo "no_failures=true" >> "$GITHUB_ENV"
           fi
 
-          # Salva se siamo in modalità repo singola o org
           if [ -n "$TARGET_REPO" ]; then
             echo "mode=repo" >> "$GITHUB_ENV"
           else
@@ -105,7 +104,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_PAT }}
         run: |
-          if [ ! -f "new-failures.jsonl" ]; then
+          if [ ! -f "new-failures.jsonl" ] || [ ! -s "new-failures.jsonl" ]; then
             echo "Nessun failure da processare"
             exit 0
           fi
@@ -232,11 +231,15 @@ jobs:
             fi
             echo "TEAMS_COLOR=green" >> "$GITHUB_ENV"
           else
-            FAILURE_COUNT=$(wc -l < new-failures.jsonl | tr -d ' ')
+            if [ -f "new-failures.jsonl" ] && [ -s "new-failures.jsonl" ]; then
+              FAILURE_COUNT=$(wc -l < new-failures.jsonl | tr -d ' ')
+            else
+              FAILURE_COUNT=0
+            fi
             ORG="${{ github.repository_owner }}"
 
             FAILURE_LIST=""
-            if [ -f "new-failures.jsonl" ]; then
+            if [ -f "new-failures.jsonl" ] && [ -s "new-failures.jsonl" ]; then
               while IFS= read -r f; do
                 REPO=$(echo "$f" | jq -r '.repo' | sed "s|${ORG}/||")
                 NAME=$(echo "$f" | jq -r '.name')
@@ -247,10 +250,12 @@ jobs:
             fi
 
             REPO_LINKS=""
-            while IFS= read -r f; do
-              REPO=$(echo "$f" | jq -r '.repo')
-              REPO_LINKS="${REPO_LINKS}• https://github.com/${REPO}/issues\n"
-            done < <(jq -s 'unique_by(.repo)[]' new-failures.jsonl)
+            if [ -f "new-failures.jsonl" ] && [ -s "new-failures.jsonl" ]; then
+              while IFS= read -r f; do
+                REPO=$(echo "$f" | jq -r '.repo')
+                REPO_LINKS="${REPO_LINKS}• https://github.com/${REPO}/issues\n"
+              done < <(jq -s 'unique_by(.repo)[]' new-failures.jsonl)
+            fi
 
             if [ "${{ env.mode }}" = "repo" ]; then
               TITLE="❌ Workflow fallito — ${{ inputs.target-repo }}"
@@ -260,7 +265,7 @@ jobs:
 
             {
               echo "TEAMS_MESSAGE<<EOF"
-              echo "Trovati ${FAILURE_COUNT} fallimenti nelle ultime 2 ore:"
+              echo "Trovati ${FAILURE_COUNT} fallimenti:"
               echo ""
               printf '%b' "${FAILURE_LIST}"
               echo ""
