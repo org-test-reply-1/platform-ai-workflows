@@ -53,7 +53,7 @@ jobs:
 
           echo "GH_TOKEN is set? $([ -n "$GH_TOKEN" ] && echo yes || echo no)"
 
-          # Modalità run ID specifico — usa direttamente il run ID passato
+          # Modalità run ID specifico
           if [ -n "$FAILED_RUN_ID" ] && [ -n "$TARGET_REPO" ]; then
             echo "🎯 Modalità run specifico: ${FAILED_RUN_ID} in ${TARGET_REPO}"
             FULL_REPO="${ORG}/$(echo "$TARGET_REPO" | sed 's|.*/||')"
@@ -73,7 +73,7 @@ jobs:
 
             echo "mode=repo" >> "$GITHUB_ENV"
 
-          # Modalità repo singola — scansiona solo quella repo
+          # Modalità repo singola
           elif [ -n "$TARGET_REPO" ]; then
             echo "🔍 Scansione repository: ${TARGET_REPO}"
             echo "📅 Run falliti dal: ${SINCE}"
@@ -111,7 +111,7 @@ jobs:
               echo "no_failures=true" >> "$GITHUB_ENV"
             fi
 
-          # Modalità org — scansiona tutta l'org
+          # Modalità org
           else
             echo "🔍 Scansione org: ${ORG}"
             echo "📅 Run falliti dal: ${SINCE}"
@@ -274,6 +274,8 @@ jobs:
       - name: Prepara messaggio Teams
         if: always()
         run: |
+          ORG="${{ github.repository_owner }}"
+
           if [ "${{ env.no_failures }}" = "true" ]; then
             if [ "${{ env.mode }}" = "repo" ]; then
               echo "TEAMS_TITLE=✅ Repository OK" >> "$GITHUB_ENV"
@@ -289,24 +291,38 @@ jobs:
             else
               FAILURE_COUNT=1
             fi
-            ORG="${{ github.repository_owner }}"
-          
+
+            FAILURE_LIST=""
+            if [ -f "new-failures.jsonl" ] && [ -s "new-failures.jsonl" ]; then
+              while IFS= read -r f; do
+                REPO=$(echo "$f" | jq -r '.repo' | sed "s|${ORG}/||")
+                NAME=$(echo "$f" | jq -r '.name')
+                ID=$(echo "$f" | jq -r '.id')
+                URL=$(echo "$f" | jq -r '.url')
+                FAILURE_LIST="${FAILURE_LIST}• ${REPO} — ${NAME} ([run #${ID}](${URL}))  \n"
+              done < new-failures.jsonl
+            fi
+
             if [ "${{ env.mode }}" = "repo" ]; then
               TITLE="❌ Workflow fallito — ${{ inputs.target-repo }}"
+              MSG="Workflow fallito rilevato in ${{ inputs.target-repo }}."
               ISSUE_LINK="https://github.com/${{ inputs.target-repo }}/issues"
             else
               TITLE="❌ Workflow falliti rilevati — ${ORG}"
+              MSG="Trovati ${FAILURE_COUNT} fallimenti nelle ultime 2 ore:"
               ISSUE_LINK="https://github.com/${ORG}"
             fi
-          
+
             {
               echo "TEAMS_MESSAGE<<EOF"
-              echo "Workflow fallito rilevato in ${{ inputs.target-repo }}."
+              echo "${MSG}"
+              echo ""
+              printf '%b' "${FAILURE_LIST}"
               echo ""
               echo "👉 Controlla le issue: ${ISSUE_LINK}"
               echo "EOF"
             } >> "$GITHUB_ENV"
-          
+
             echo "TEAMS_TITLE=${TITLE}" >> "$GITHUB_ENV"
             echo "TEAMS_COLOR=red" >> "$GITHUB_ENV"
           fi
