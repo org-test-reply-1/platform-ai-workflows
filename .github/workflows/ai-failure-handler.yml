@@ -18,6 +18,11 @@ on:
         required: false
         type: string
         default: ''
+      failed-run-id:
+        description: 'Run ID del fallimento specifico. Se vuoto scansiona tutta la org.'
+        required: false
+        type: string
+        default: ''
     secrets:
       COPILOT_ASSIGN_PAT:
         required: true
@@ -44,59 +49,107 @@ jobs:
                   date -u -v-${LOOKBACK}M '+%Y-%m-%dT%H:%M:%SZ')
 
           TARGET_REPO="${{ inputs.target-repo }}"
+          FAILED_RUN_ID="${{ inputs.failed-run-id }}"
 
-          if [ -n "$TARGET_REPO" ]; then
-            echo "🔍 Scansione repository: ${TARGET_REPO}"
-            REPOS=$(echo "$TARGET_REPO" | sed 's|.*/||')
-          else
-            echo "🔍 Scansione org: ${ORG}"
-            REPOS=$(gh repo list "$ORG" --limit 200 --json name --jq '.[].name')
-          fi
-
-          echo "📅 Run falliti dal: ${SINCE}"
           echo "GH_TOKEN is set? $([ -n "$GH_TOKEN" ] && echo yes || echo no)"
 
-          echo '[]' > all-failures.json
+          # Modalità run ID specifico — usa direttamente il run ID passato
+          if [ -n "$FAILED_RUN_ID" ] && [ -n "$TARGET_REPO" ]; then
+            echo "🎯 Modalità run specifico: ${FAILED_RUN_ID} in ${TARGET_REPO}"
+            FULL_REPO="${ORG}/$(echo "$TARGET_REPO" | sed 's|.*/||')"
 
-          for REPO in $REPOS; do
-            FULL_REPO="${ORG}/${REPO}"
+            RUN_DATA=$(gh api "/repos/${FULL_REPO}/actions/runs/${FAILED_RUN_ID}" \
+              --jq '{id: .id, name: .name, branch: .head_branch, sha: .head_sha, url: .html_url, created: .created_at, repo: "'"${FULL_REPO}"'"}' \
+              2>/dev/null)
 
-            FAILED_RUNS=$(gh api "/repos/${FULL_REPO}/actions/runs?status=failure&created=>=${SINCE}&per_page=10" \
-              --jq '.workflow_runs[] | {id: .id, name: .name, branch: .head_branch, sha: .head_sha, url: .html_url, created: .created_at, repo: "'"${FULL_REPO}"'"}' \
-              2>/dev/null) || continue
-
-            if [ -z "$FAILED_RUNS" ]; then
-              continue
+            if [ -n "$RUN_DATA" ]; then
+              echo "$RUN_DATA" | jq -c '.' >> new-failures.jsonl
+              TOTAL=$(wc -l < new-failures.jsonl)
+              echo "📊 Run da processare: ${TOTAL}"
+            else
+              echo "✅ Run non trovato o già gestito"
+              echo "no_failures=true" >> "$GITHUB_ENV"
             fi
 
-            echo "$FAILED_RUNS" | jq -s '.' >> failures-batch.json
-
-            echo "$FAILED_RUNS" | while IFS= read -r run_json; do
-              RUN_ID=$(echo "$run_json" | jq -r '.id')
-
-              EXISTING=$(gh issue list --repo "$FULL_REPO" --label "copilot-auto" \
-                --search "run #${RUN_ID}" --json number --jq 'length' 2>/dev/null || echo "0")
-
-              if [ "$EXISTING" = "0" ]; then
-                echo "$run_json" | jq -c '.' >> new-failures.jsonl
-              else
-                echo "  ⏭️  Skip ${FULL_REPO} run #${RUN_ID} — issue già esistente"
-              fi
-            done
-          done
-
-          if [ -f "new-failures.jsonl" ] && [ -s "new-failures.jsonl" ]; then
-            TOTAL=$(wc -l < new-failures.jsonl)
-            echo "📊 Run falliti da processare: ${TOTAL}"
-          else
-            echo "✅ Nessun run fallito non gestito trovato"
-            echo "no_failures=true" >> "$GITHUB_ENV"
-          fi
-
-          if [ -n "$TARGET_REPO" ]; then
             echo "mode=repo" >> "$GITHUB_ENV"
+
+          # Modalità repo singola — scansiona solo quella repo
+          elif [ -n "$TARGET_REPO" ]; then
+            echo "🔍 Scansione repository: ${TARGET_REPO}"
+            echo "📅 Run falliti dal: ${SINCE}"
+            REPOS=$(echo "$TARGET_REPO" | sed 's|.*/||')
+            echo "mode=repo" >> "$GITHUB_ENV"
+
+            for REPO in $REPOS; do
+              FULL_REPO="${ORG}/${REPO}"
+
+              FAILED_RUNS=$(gh api "/repos/${FULL_REPO}/actions/runs?status=failure&created=>=${SINCE}&per_page=10" \
+                --jq '.workflow_runs[] | {id: .id, name: .name, branch: .head_branch, sha: .head_sha, url: .html_url, created: .created_at, repo: "'"${FULL_REPO}"'"}' \
+                2>/dev/null) || continue
+
+              if [ -z "$FAILED_RUNS" ]; then
+                continue
+              fi
+
+              echo "$FAILED_RUNS" | while IFS= read -r run_json; do
+                RUN_ID=$(echo "$run_json" | jq -r '.id')
+                EXISTING=$(gh issue list --repo "$FULL_REPO" --label "copilot-auto" \
+                  --search "run #${RUN_ID}" --json number --jq 'length' 2>/dev/null || echo "0")
+                if [ "$EXISTING" = "0" ]; then
+                  echo "$run_json" | jq -c '.' >> new-failures.jsonl
+                else
+                  echo "  ⏭️  Skip ${FULL_REPO} run #${RUN_ID} — issue già esistente"
+                fi
+              done
+            done
+
+            if [ -f "new-failures.jsonl" ] && [ -s "new-failures.jsonl" ]; then
+              TOTAL=$(wc -l < new-failures.jsonl)
+              echo "📊 Run falliti da processare: ${TOTAL}"
+            else
+              echo "✅ Nessun run fallito non gestito trovato"
+              echo "no_failures=true" >> "$GITHUB_ENV"
+            fi
+
+          # Modalità org — scansiona tutta l'org
           else
+            echo "🔍 Scansione org: ${ORG}"
+            echo "📅 Run falliti dal: ${SINCE}"
+            REPOS=$(gh repo list "$ORG" --limit 200 --json name --jq '.[].name')
             echo "mode=org" >> "$GITHUB_ENV"
+
+            echo '[]' > all-failures.json
+
+            for REPO in $REPOS; do
+              FULL_REPO="${ORG}/${REPO}"
+
+              FAILED_RUNS=$(gh api "/repos/${FULL_REPO}/actions/runs?status=failure&created=>=${SINCE}&per_page=10" \
+                --jq '.workflow_runs[] | {id: .id, name: .name, branch: .head_branch, sha: .head_sha, url: .html_url, created: .created_at, repo: "'"${FULL_REPO}"'"}' \
+                2>/dev/null) || continue
+
+              if [ -z "$FAILED_RUNS" ]; then
+                continue
+              fi
+
+              echo "$FAILED_RUNS" | while IFS= read -r run_json; do
+                RUN_ID=$(echo "$run_json" | jq -r '.id')
+                EXISTING=$(gh issue list --repo "$FULL_REPO" --label "copilot-auto" \
+                  --search "run #${RUN_ID}" --json number --jq 'length' 2>/dev/null || echo "0")
+                if [ "$EXISTING" = "0" ]; then
+                  echo "$run_json" | jq -c '.' >> new-failures.jsonl
+                else
+                  echo "  ⏭️  Skip ${FULL_REPO} run #${RUN_ID} — issue già esistente"
+                fi
+              done
+            done
+
+            if [ -f "new-failures.jsonl" ] && [ -s "new-failures.jsonl" ]; then
+              TOTAL=$(wc -l < new-failures.jsonl)
+              echo "📊 Run falliti da processare: ${TOTAL}"
+            else
+              echo "✅ Nessun run fallito non gestito trovato"
+              echo "no_failures=true" >> "$GITHUB_ENV"
+            fi
           fi
 
       - name: Create issues and assign Copilot
