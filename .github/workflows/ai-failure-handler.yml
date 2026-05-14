@@ -287,46 +287,26 @@ jobs:
             if [ -f "new-failures.jsonl" ] && [ -s "new-failures.jsonl" ]; then
               FAILURE_COUNT=$(wc -l < new-failures.jsonl | tr -d ' ')
             else
-              FAILURE_COUNT=0
+              FAILURE_COUNT=1
             fi
             ORG="${{ github.repository_owner }}"
-
-            FAILURE_LIST=""
-            if [ -f "new-failures.jsonl" ] && [ -s "new-failures.jsonl" ]; then
-              while IFS= read -r f; do
-                REPO=$(echo "$f" | jq -r '.repo' | sed "s|${ORG}/||")
-                NAME=$(echo "$f" | jq -r '.name')
-                ID=$(echo "$f" | jq -r '.id')
-                URL=$(echo "$f" | jq -r '.url')
-                FAILURE_LIST="${FAILURE_LIST}• ${REPO} — ${NAME} ([run #${ID}](${URL}))  \n"
-              done < new-failures.jsonl
-            fi
-
-            REPO_LINKS=""
-            if [ -f "new-failures.jsonl" ] && [ -s "new-failures.jsonl" ]; then
-              while IFS= read -r f; do
-                REPO=$(echo "$f" | jq -r '.repo')
-                REPO_LINKS="${REPO_LINKS}• https://github.com/${REPO}/issues\n"
-              done < <(jq -s 'unique_by(.repo)[]' new-failures.jsonl)
-            fi
-
+          
             if [ "${{ env.mode }}" = "repo" ]; then
               TITLE="❌ Workflow fallito — ${{ inputs.target-repo }}"
+              ISSUE_LINK="https://github.com/${{ inputs.target-repo }}/issues"
             else
               TITLE="❌ Workflow falliti rilevati — ${ORG}"
+              ISSUE_LINK="https://github.com/${ORG}"
             fi
-
+          
             {
               echo "TEAMS_MESSAGE<<EOF"
-              echo "Trovati ${FAILURE_COUNT} fallimenti:"
+              echo "Workflow fallito rilevato in ${{ inputs.target-repo }}."
               echo ""
-              printf '%b' "${FAILURE_LIST}"
-              echo ""
-              echo "👉 Controlla le issue per repo:"
-              printf '%b' "${REPO_LINKS}"
+              echo "👉 Controlla le issue: ${ISSUE_LINK}"
               echo "EOF"
             } >> "$GITHUB_ENV"
-
+          
             echo "TEAMS_TITLE=${TITLE}" >> "$GITHUB_ENV"
             echo "TEAMS_COLOR=red" >> "$GITHUB_ENV"
           fi
