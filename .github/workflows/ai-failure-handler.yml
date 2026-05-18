@@ -1,6 +1,9 @@
 name: Org-wide Failure Handler
 
 on:
+  schedule:
+    - cron: '0 */2 * * *'
+  workflow_dispatch:
   workflow_call:
     inputs:
       lookback-minutes:
