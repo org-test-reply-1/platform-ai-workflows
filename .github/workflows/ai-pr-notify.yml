@@ -14,10 +14,10 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Notifica Teams PR Copilot
+      - name: Notify Teams of Copilot PR
         uses: org-test-reply-1/platform-actions/notify-teams@main
         with:
           webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
-          title: '🤖 Pull Request aperta da Copilot — ${{ github.repository }}'
-          message: '${{ github.event.pull_request.title }} | 👉 ${{ github.event.pull_request.html_url }}'
+          title: 'Pull Request opened by Copilot - ${{ github.repository }}'
+          message: '${{ github.event.pull_request.title }} | ${{ github.event.pull_request.html_url }}'
           color: 'orange'

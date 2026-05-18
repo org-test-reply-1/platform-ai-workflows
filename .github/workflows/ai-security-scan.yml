@@ -5,12 +5,12 @@ on:
   workflow_call:
     inputs:
       scan-paths:
-        description: 'Path da scansionare (default: tutto il repo)'
+        description: 'Paths to scan (default: entire repository)'
         required: false
         type: string
         default: '.'
       fail-on-critical:
-        description: 'Fallire se trovate vulnerabilità critiche'
+        description: 'Fail if critical vulnerabilities are found'
         required: false
         type: boolean
         default: false
@@ -39,19 +39,19 @@ jobs:
           scan-paths: ${{ inputs.scan-paths }}
           assign-pat: ${{ secrets.COPILOT_ASSIGN_PAT }}
           task-prompt: |
-            ## 🔍 Analisi completa del codice sorgente
+            ## Full source code analysis
 
-            Scansiona **tutto** il codice sorgente di questa repository in ${{ inputs.scan-paths }}.
-            Analizza l'intero codice (inclusi workflow, script, Dockerfile, progetti .NET e test).
+            Scan **all** source code in this repository at ${{ inputs.scan-paths }}.
+            Analyze all code (including workflows, scripts, Dockerfiles, .NET projects, and tests).
 
-            ### Obiettivi:
-            1. **Sicurezza**: vulnerabilità, secrets hardcoded, injection, misconfiguration
-            2. **Qualità del codice**: code smells, duplicazioni, complessità eccessiva
-            3. **Best practices**: pattern mancanti, configurazioni non ottimali
-            4. **Pipeline**: problemi nei workflow, permessi eccessivi, mancanza di validazioni
+            ### Objectives:
+            1. **Security**: vulnerabilities, hardcoded secrets, injection, misconfiguration
+            2. **Code quality**: code smells, duplication, excessive complexity
+            3. **Best practices**: missing patterns, suboptimal configurations
+            4. **Pipeline**: workflow issues, excessive permissions, missing validations
 
-            ### Output richiesto:
-            - Report con severity (CRITICAL, HIGH, MEDIUM, LOW)
-            - Per ogni problema: descrizione, file, linea, fix suggerito
-            - **Apri una Pull Request** con i fix per problemi CRITICAL e HIGH
-            - Se trovi vulnerabilità critiche, aggiungi nel commento: "THIS ASSESSMENT CONTAINS A CRITICAL VULNERABILITY"
+            ### Expected output:
+            - Report with severity levels (CRITICAL, HIGH, MEDIUM, LOW)
+            - For each issue: description, file, line number, suggested fix
+            - **Open a Pull Request** with fixes for CRITICAL and HIGH issues
+            - If critical vulnerabilities are found, add in the comment: "THIS ASSESSMENT CONTAINS A CRITICAL VULNERABILITY"

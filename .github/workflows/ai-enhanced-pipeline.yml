@@ -29,7 +29,7 @@ permissions:
 
 jobs:
   # ========================================================
-  # AI Security Scan — Crea issue e assegna al Coding Agent
+  # AI Security Scan - Create issue and assign to Coding Agent
   # ========================================================
   ai-security-scan:
     name: AI Security Scan

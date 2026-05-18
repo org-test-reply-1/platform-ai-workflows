@@ -17,7 +17,7 @@ jobs:
   summary:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo chiamante
+      - name: Checkout calling repository
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository }}
@@ -29,33 +29,33 @@ jobs:
         with:
           copilot-token: ${{ secrets.COPILOT_ASSIGN_PAT }}
 
-      - name: Genera summary
+      - name: Generate summary
         env:
           GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_PAT }}
           REPO: ${{ github.repository }}
         run: |
-          echo "## 📋 Commit ultime 24 ore" > summary.md
+          echo "## Commits in the last 24 hours" > summary.md
           echo "" >> summary.md
 
           git log --since="24 hours ago" \
-            --pretty=format:"- [%s](https://github.com/${REPO}/commit/%H) — %an — %ar" \
-            >> summary.md || echo "- Nessun commit nelle ultime 24 ore" >> summary.md
+            --pretty=format:"- [%s](https://github.com/${REPO}/commit/%H) - %an - %ar" \
+            >> summary.md || echo "- No commits in the last 24 hours" >> summary.md
 
           echo "" >> summary.md
           echo "" >> summary.md
-          echo "## ❌ Workflow falliti oggi" >> summary.md
+          echo "## Failed workflows today" >> summary.md
           echo "" >> summary.md
 
           gh run list --repo "$REPO" \
             --status failure \
             --created "$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -v-24H '+%Y-%m-%dT%H:%M:%SZ')" \
             --json displayTitle,url,createdAt \
-            --jq '.[] | "- [\(.displayTitle)](\(.url)) — \(.createdAt)"' \
-            >> summary.md || echo "- Nessun workflow fallito" >> summary.md
+            --jq '.[] | "- [\(.displayTitle)](\(.url)) - \(.createdAt)"' \
+            >> summary.md || echo "- No failed workflows" >> summary.md
 
           echo "" >> summary.md
           echo "---" >> summary.md
-          echo "_Generato automaticamente il $(date -u '+%Y-%m-%d alle %H:%M UTC')_" >> summary.md
+          echo "_Automatically generated on $(date -u '+%Y-%m-%d at %H:%M UTC')_" >> summary.md
 
           cat summary.md >> "$GITHUB_STEP_SUMMARY"
 
@@ -67,19 +67,17 @@ jobs:
           path: summary.md
           retention-days: 14
 
-      - name: Prepara messaggio Teams
+      - name: Prepare Teams message
         if: always()
         run: |
           COMMIT_COUNT=$(git log --since="24 hours ago" --oneline | wc -l | tr -d ' ')
           echo "TEAMS_COMMIT_COUNT=${COMMIT_COUNT}" >> "$GITHUB_ENV"
 
-      - name: Notifica Teams
+      - name: Send Teams notification
         if: always()
         uses: org-test-reply-1/platform-actions/notify-teams@main
         with:
           webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
-          title: '📋 Daily Summary — ${{ github.repository }}'
-          message: 'Commit ultime 24 ore: ${{ env.TEAMS_COMMIT_COUNT }} | Repository: ${{ github.repository }} | 👉 Scarica il summary completo: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+          title: 'Daily Summary - ${{ github.repository }}'
+          message: 'Commits in the last 24 hours: ${{ env.TEAMS_COMMIT_COUNT }} | Repository: ${{ github.repository }} | Download the full summary: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'
           color: 'green'
-        
-      

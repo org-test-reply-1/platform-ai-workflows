@@ -4,22 +4,22 @@ on:
   workflow_call:
     inputs:
       lookback-minutes:
-        description: 'Minuti indietro da controllare (default: 120)'
+        description: 'Minutes to look back for failed runs (default: 120)'
         required: false
         type: number
         default: 120
       dry-run:
-        description: 'Solo report, senza creare issue'
+        description: 'Report only, do not create issues'
         required: false
         type: boolean
         default: false
       target-repo:
-        description: 'Repository da scansionare. Se vuoto scansiona tutta la org.'
+        description: 'Repository to scan. If empty, scans the entire org.'
         required: false
         type: string
         default: ''
       failed-run-id:
-        description: 'Run ID del fallimento specifico. Se vuoto scansiona tutta la org.'
+        description: 'Run ID of the specific failure. If empty, scans the entire org.'
         required: false
         type: string
         default: ''
@@ -53,9 +53,9 @@ jobs:
 
           echo "GH_TOKEN is set? $([ -n "$GH_TOKEN" ] && echo yes || echo no)"
 
-          # Modalità run ID specifico
+          # Specific run mode
           if [ -n "$FAILED_RUN_ID" ] && [ -n "$TARGET_REPO" ]; then
-            echo "🎯 Modalità run specifico: ${FAILED_RUN_ID} in ${TARGET_REPO}"
+            echo "Specific run mode: ${FAILED_RUN_ID} in ${TARGET_REPO}"
             FULL_REPO="${ORG}/$(echo "$TARGET_REPO" | sed 's|.*/||')"
 
             RUN_DATA=$(gh api "/repos/${FULL_REPO}/actions/runs/${FAILED_RUN_ID}" \
@@ -65,18 +65,18 @@ jobs:
             if [ -n "$RUN_DATA" ]; then
               echo "$RUN_DATA" | jq -c '.' >> new-failures.jsonl
               TOTAL=$(wc -l < new-failures.jsonl)
-              echo "📊 Run da processare: ${TOTAL}"
+              echo "Runs to process: ${TOTAL}"
             else
-              echo "✅ Run non trovato o già gestito"
+              echo "Run not found or already handled"
               echo "no_failures=true" >> "$GITHUB_ENV"
             fi
 
             echo "mode=repo" >> "$GITHUB_ENV"
 
-          # Modalità repo singola
+          # Single repository mode
           elif [ -n "$TARGET_REPO" ]; then
-            echo "🔍 Scansione repository: ${TARGET_REPO}"
-            echo "📅 Run falliti dal: ${SINCE}"
+            echo "Scanning repository: ${TARGET_REPO}"
+            echo "Failed runs since: ${SINCE}"
             REPOS=$(echo "$TARGET_REPO" | sed 's|.*/||')
             echo "mode=repo" >> "$GITHUB_ENV"
 
@@ -98,23 +98,23 @@ jobs:
                 if [ "$EXISTING" = "0" ]; then
                   echo "$run_json" | jq -c '.' >> new-failures.jsonl
                 else
-                  echo "  ⏭️  Skip ${FULL_REPO} run #${RUN_ID} — issue già esistente"
+                  echo "  Skip ${FULL_REPO} run #${RUN_ID} - issue already exists"
                 fi
               done
             done
 
             if [ -f "new-failures.jsonl" ] && [ -s "new-failures.jsonl" ]; then
               TOTAL=$(wc -l < new-failures.jsonl)
-              echo "📊 Run falliti da processare: ${TOTAL}"
+              echo "Failed runs to process: ${TOTAL}"
             else
-              echo "✅ Nessun run fallito non gestito trovato"
+              echo "No unhandled failed runs found"
               echo "no_failures=true" >> "$GITHUB_ENV"
             fi
 
-          # Modalità org
+          # Org-wide mode
           else
-            echo "🔍 Scansione org: ${ORG}"
-            echo "📅 Run falliti dal: ${SINCE}"
+            echo "Scanning org: ${ORG}"
+            echo "Failed runs since: ${SINCE}"
             REPOS=$(gh repo list "$ORG" --limit 200 --json name --jq '.[].name')
             echo "mode=org" >> "$GITHUB_ENV"
 
@@ -138,16 +138,16 @@ jobs:
                 if [ "$EXISTING" = "0" ]; then
                   echo "$run_json" | jq -c '.' >> new-failures.jsonl
                 else
-                  echo "  ⏭️  Skip ${FULL_REPO} run #${RUN_ID} — issue già esistente"
+                  echo "  Skip ${FULL_REPO} run #${RUN_ID} - issue already exists"
                 fi
               done
             done
 
             if [ -f "new-failures.jsonl" ] && [ -s "new-failures.jsonl" ]; then
               TOTAL=$(wc -l < new-failures.jsonl)
-              echo "📊 Run falliti da processare: ${TOTAL}"
+              echo "Failed runs to process: ${TOTAL}"
             else
-              echo "✅ Nessun run fallito non gestito trovato"
+              echo "No unhandled failed runs found"
               echo "no_failures=true" >> "$GITHUB_ENV"
             fi
           fi
@@ -158,7 +158,7 @@ jobs:
           GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_PAT }}
         run: |
           if [ ! -f "new-failures.jsonl" ] || [ ! -s "new-failures.jsonl" ]; then
-            echo "Nessun failure da processare"
+            echo "No failures to process"
             exit 0
           fi
 
@@ -173,53 +173,53 @@ jobs:
             RUN_SHA=$(echo "$failure" | jq -r '.sha')
             RUN_REPO=$(echo "$failure" | jq -r '.repo')
 
-            echo "📝 Creazione issue per ${RUN_REPO} — ${RUN_NAME} (run #${RUN_ID})"
+            echo "Creating issue for ${RUN_REPO} - ${RUN_NAME} (run #${RUN_ID})"
 
-            LOG_EXCERPT=$(gh run view "$RUN_ID" --repo "$RUN_REPO" --log-failed 2>/dev/null | tail -80 || echo "Log non disponibili")
+            LOG_EXCERPT=$(gh run view "$RUN_ID" --repo "$RUN_REPO" --log-failed 2>/dev/null | tail -80 || echo "Logs not available")
 
             FAILED_JOBS=$(gh run view "$RUN_ID" --repo "$RUN_REPO" --json jobs \
               --jq '.jobs[] | select(.conclusion == "failure") | "- **\(.name)**: \(.steps[] | select(.conclusion == "failure") | .name)"' \
-              2>/dev/null || echo "Info job non disponibili")
+              2>/dev/null || echo "Job info not available")
 
             DETECTED=$(date -u '+%Y-%m-%d %H:%M UTC')
-            ISSUE_BODY=$(printf '## Workflow fallito — rilevato automaticamente\n\n**Workflow**: %s\n**Run**: [#%s](%s)\n**Repository**: `%s`\n**Branch**: `%s`\n**Commit**: `%s`\n**Data rilevamento**: %s\n\n### Job e step falliti\n%s\n\n### Log di errore (ultimi 80 righe)\n```\n%s\n```\n\n### Istruzioni\nAnalizza il log di errore, identifica la causa root e proponi un fix.\n- Se e un errore di build (Maven, npm), controlla dipendenze e configurazione\n- Se e un errore di test, verifica il test e il codice sotto test\n- Se e un errore di deploy, verifica configurazione k8s e secrets\n- Se il problema e nel template centralizzato (platform-workflows), segnalalo senza modificare il template\n- Rispetta le convenzioni in `.github/copilot-instructions.md`\n' \
+            ISSUE_BODY=$(printf '## Failed workflow - automatically detected\n\n**Workflow**: %s\n**Run**: [#%s](%s)\n**Repository**: `%s`\n**Branch**: `%s`\n**Commit**: `%s`\n**Detected at**: %s\n\n### Failed jobs and steps\n%s\n\n### Error log (last 80 lines)\n```\n%s\n```\n\n### Instructions\nAnalyze the error log, identify the root cause, and propose a fix.\n- If it is a build error (Maven, npm), check dependencies and configuration\n- If it is a test error, verify the test and the code under test\n- If it is a deploy error, verify k8s configuration and secrets\n- If the issue is in the centralized template (platform-workflows), report it without modifying the template\n- Follow the conventions in `.github/copilot-instructions.md`\n' \
                 "$RUN_NAME" "$RUN_ID" "$RUN_URL" "$RUN_REPO" "$RUN_BRANCH" "$RUN_SHA" "$DETECTED" "$FAILED_JOBS" "$LOG_EXCERPT")
 
-            gh label create "copilot-auto" --repo "$RUN_REPO" --color "0075ca" --description "Auto-managed by AI" 2>/dev/null || true
+            gh label create "copilot-auto" --repo "$RUN_REPO" --color "0075ca" --description "Auto-managed by CI" 2>/dev/null || true
             gh label create "bug" --repo "$RUN_REPO" --color "d73a4a" --description "Something isn't working" 2>/dev/null || true
 
             ISSUE_URL=$(gh issue create \
               --repo "$RUN_REPO" \
-              --title "Auto-fix: ${RUN_NAME} fallito (run #${RUN_ID})" \
+              --title "Auto-fix: ${RUN_NAME} failed (run #${RUN_ID})" \
               --body "$ISSUE_BODY" \
               --label "copilot-auto" \
               --label "bug" 2>&1) && {
                 CREATED=$((CREATED + 1))
-                echo "  ✅ Issue creata: ${ISSUE_URL}"
+                echo "  Issue created: ${ISSUE_URL}"
                 echo "${ISSUE_URL}" >> created-issues.txt
               } || {
                 ERRORS=$((ERRORS + 1))
-                echo "  ⚠️ Errore creazione issue: ${ISSUE_URL}"
+                echo "  Error creating issue: ${ISSUE_URL}"
               }
 
           done < new-failures.jsonl
 
-          echo "📊 Riepilogo: ${CREATED} issue create, ${ERRORS} errori"
+          echo "Summary: ${CREATED} issues created, ${ERRORS} errors"
           echo "created=${CREATED}" >> "$GITHUB_ENV"
           echo "errors=${ERRORS}" >> "$GITHUB_ENV"
 
-      - name: Triggera Copilot sulle issue create
+      - name: Trigger Copilot on created issues
         if: env.no_failures != 'true' && env.mode == 'repo' && inputs.dry-run != true
         env:
           GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_PAT }}
         run: |
           if [ ! -f "created-issues.txt" ]; then
-            echo "Nessuna issue da processare"
+            echo "No issues to process"
             exit 0
           fi
 
           while IFS= read -r issue_url; do
-            echo "🤖 Assegnando Copilot alla issue: ${issue_url}"
+            echo "Assigning Copilot to issue: ${issue_url}"
 
             ISSUE_NUM=$(echo "$issue_url" | grep -oE '[0-9]+$')
             REPO_FULL=$(echo "$issue_url" | sed -n 's|.*github\.com/\([^/]*/[^/]*\)/.*|\1|p')
@@ -235,7 +235,7 @@ jobs:
               --jq '.data.repository.issue.id')
 
             if [ -z "$ISSUE_NODE_ID" ]; then
-              echo "  ⚠️ Impossibile ottenere node ID per issue #${ISSUE_NUM}"
+              echo "  Unable to get node ID for issue #${ISSUE_NUM}"
               continue
             fi
 
@@ -257,31 +257,31 @@ jobs:
               --jq '.data.repository.suggestedActors.nodes[] | select(.login == "copilot-swe-agent") | .id')
 
             if [ -z "$COPILOT_ID" ]; then
-              echo "  ⚠️ Copilot agent non disponibile in ${REPO_FULL}"
+              echo "  Copilot agent not available in ${REPO_FULL}"
               continue
             fi
 
-            echo "  📎 Copilot ID: ${COPILOT_ID}"
+            echo "  Copilot ID: ${COPILOT_ID}"
 
             gh api graphql \
               -H "GraphQL-Features: issues_copilot_assignment_api_support,coding_agent_model_selection" \
               -f query="mutation { addAssigneesToAssignable(input: { assignableId: \"$ISSUE_NODE_ID\", assigneeIds: [\"$COPILOT_ID\"] }) { clientMutationId } }" \
-              && echo "  ✅ Copilot assegnato" \
-              || echo "  ⚠️ Errore assegnazione Copilot"
+              && echo "  Copilot assigned" \
+              || echo "  Error assigning Copilot"
 
           done < created-issues.txt
 
-      - name: Prepara messaggio Teams
+      - name: Prepare Teams message
         if: always()
         run: |
           ORG="${{ github.repository_owner }}"
           if [ "${{ env.no_failures }}" = "true" ]; then
             if [ "${{ env.mode }}" = "repo" ]; then
-              echo "TEAMS_TITLE=✅ Repository OK" >> "$GITHUB_ENV"
-              echo "TEAMS_MESSAGE=Nessun workflow fallito in ${{ inputs.target-repo }}." >> "$GITHUB_ENV"
+              echo "TEAMS_TITLE=Repository OK" >> "$GITHUB_ENV"
+              echo "TEAMS_MESSAGE=No failed workflows in ${{ inputs.target-repo }}." >> "$GITHUB_ENV"
             else
-              echo "TEAMS_TITLE=✅ Org OK" >> "$GITHUB_ENV"
-              echo "TEAMS_MESSAGE=Nessun workflow fallito nelle ultime 2 ore." >> "$GITHUB_ENV"
+              echo "TEAMS_TITLE=Org OK" >> "$GITHUB_ENV"
+              echo "TEAMS_MESSAGE=No failed workflows in the last 2 hours." >> "$GITHUB_ENV"
             fi
             echo "TEAMS_COLOR=green" >> "$GITHUB_ENV"
           else
@@ -298,13 +298,13 @@ jobs:
                 NAME=$(echo "$f" | jq -r '.name')
                 ID=$(echo "$f" | jq -r '.id')
                 URL=$(echo "$f" | jq -r '.url')
-                FAILURE_LIST="${FAILURE_LIST}• ${REPO} — ${NAME} ([run #${ID}](${URL}))  \n"
+                FAILURE_LIST="${FAILURE_LIST}• ${REPO} - ${NAME} ([run #${ID}](${URL}))  \n"
               done < new-failures.jsonl
             fi
 
             if [ "${{ env.mode }}" = "repo" ]; then
-              TITLE="❌ Workflow fallito — ${{ inputs.target-repo }}"
-              MSG="Workflow fallito rilevato in ${{ inputs.target-repo }}."
+              TITLE="Workflow failed - ${{ inputs.target-repo }}"
+              MSG="Failed workflow detected in ${{ inputs.target-repo }}."
               ISSUE_LINK="https://github.com/${{ inputs.target-repo }}/issues"
               {
                 echo "TEAMS_MESSAGE<<EOF"
@@ -312,12 +312,12 @@ jobs:
                 echo ""
                 printf '%b' "${FAILURE_LIST}"
                 echo ""
-                echo "👉 Controlla le issue: ${ISSUE_LINK}"
+                echo "Check issues: ${ISSUE_LINK}"
                 echo "EOF"
               } >> "$GITHUB_ENV"
             else
-              TITLE="❌ Workflow falliti rilevati — ${ORG}"
-              MSG="Trovati ${FAILURE_COUNT} fallimenti nelle ultime 2 ore:"
+              TITLE="Failed workflows detected - ${ORG}"
+              MSG="Found ${FAILURE_COUNT} failures in the last 2 hours:"
 
               ISSUE_LINKS=""
               SEEN_REPOS=""
@@ -337,7 +337,7 @@ jobs:
                 echo ""
                 printf '%b' "${FAILURE_LIST}"
                 echo ""
-                echo "👉 Controlla le issue per repo:"
+                echo "Check issues per repository:"
                 printf '%b' "${ISSUE_LINKS}"
                 echo "EOF"
               } >> "$GITHUB_ENV"
@@ -347,7 +347,7 @@ jobs:
             echo "TEAMS_COLOR=red" >> "$GITHUB_ENV"
           fi
 
-      - name: Notifica Teams
+      - name: Send Teams notification
         if: always()
         uses: org-test-reply-1/platform-actions/notify-teams@main
         with:
